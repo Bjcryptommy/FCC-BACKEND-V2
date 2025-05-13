@@ -3,7 +3,7 @@
 import sqlite3
 
 def create_tables():
-    conn = sqlite3.connect('backend/database.db')
+    conn = sqlite3.connect('database.db')
     c = conn.cursor()
 
     # ✅ USERS table with full_name included
