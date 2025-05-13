@@ -6,7 +6,7 @@ import sqlite3
 quiz_bp = Blueprint('quiz', __name__)
 
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect('database.db')
 
 # Add a question
 @quiz_bp.route('/questions', methods=['POST'])
