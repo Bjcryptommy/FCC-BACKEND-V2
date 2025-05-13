@@ -5,7 +5,7 @@ import sqlite3
 comment_bp = Blueprint('comments', __name__, url_prefix='/comments')
 
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect('database.db')
 
 # 🔧 Create Comments Table
 def create_comment_table():
