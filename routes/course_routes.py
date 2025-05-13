@@ -4,7 +4,7 @@ import sqlite3
 course_bp = Blueprint('course', __name__)
 
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect('database.db')
 
 # ----------------------------------------
 # ✅ Add a new course (admin only)
