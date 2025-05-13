@@ -6,7 +6,7 @@ import sqlite3
 auth_bp = Blueprint('auth', __name__)
 
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect('database.db')
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
