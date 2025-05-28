@@ -209,3 +209,13 @@ def get_user_progress(username):
 
     return jsonify(data)
 
+@quiz_bp.route('/questions/<int:question_id>/delete', methods=['DELETE'])
+def delete_question(question_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Question deleted successfully!"})
+
+
