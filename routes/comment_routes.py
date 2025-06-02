@@ -1,11 +1,23 @@
+# backend/routes/comment_routes.py
+
 from flask import Blueprint, request, jsonify
-import sqlite3
+import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set prefix here so endpoints become: /comments/...
 comment_bp = Blueprint('comments', __name__, url_prefix='/comments')
 
 def get_db():
-    return sqlite3.connect('database.db')
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT")
+    )
 
 # 🔧 Create Comments Table
 def create_comment_table():
@@ -13,18 +25,16 @@ def create_comment_table():
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             lesson_id INTEGER,
             username TEXT,
             text TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (lesson_id) REFERENCES lessons(id)
         )
     ''')
     conn.commit()
     conn.close()
-
-create_comment_table()
 
 # 📥 POST a Comment - POST /comments
 @comment_bp.route('', methods=['POST'])
@@ -40,7 +50,7 @@ def post_comment():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO comments (lesson_id, username, text) VALUES (?, ?, ?)",
+        "INSERT INTO comments (lesson_id, username, text) VALUES (%s, %s, %s)",
         (lesson_id, username, text)
     )
     conn.commit()
@@ -54,7 +64,7 @@ def get_comments(lesson_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT username, text, timestamp FROM comments WHERE lesson_id = ? ORDER BY timestamp DESC",
+        "SELECT username, text, timestamp FROM comments WHERE lesson_id = %s ORDER BY timestamp DESC",
         (lesson_id,)
     )
     rows = cursor.fetchall()
