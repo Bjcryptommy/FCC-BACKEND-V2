@@ -1,10 +1,19 @@
+# backend/routes/course_routes.py
+
 from flask import Blueprint, request, jsonify
-import sqlite3
+import psycopg2
+import os
 
 course_bp = Blueprint('course', __name__)
 
 def get_db():
-    return sqlite3.connect('database.db')
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT", 5432)
+    )
 
 # ----------------------------------------
 # ✅ Add a new course (admin only)
@@ -12,7 +21,7 @@ def get_db():
 @course_bp.route('/courses', methods=['POST'])
 def add_course():
     data = request.get_json()
-    username = data.get('username')  # Who is adding
+    username = data.get('username')
     title = data.get('title')
     description = data.get('description')
     language = data.get('language', 'General')
@@ -20,16 +29,14 @@ def add_course():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if user is admin
-    cursor.execute("SELECT role FROM users WHERE username = ?", (username,))
+    cursor.execute("SELECT role FROM users WHERE username = %s", (username,))
     user = cursor.fetchone()
 
     if not user or user[0] != 'admin':
         return jsonify({"error": "Only admins can add courses."}), 403
 
-    # Insert course with language
     cursor.execute(
-        "INSERT INTO courses (title, description, language) VALUES (?, ?, ?)",
+        "INSERT INTO courses (title, description, language) VALUES (%s, %s, %s)",
         (title, description, language)
     )
     conn.commit()
@@ -71,7 +78,7 @@ def add_lesson():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO lessons (course_id, title, video_url, lesson_text) VALUES (?, ?, ?, ?)",
+        "INSERT INTO lessons (course_id, title, video_url, lesson_text) VALUES (%s, %s, %s, %s)",
         (course_id, title, video_url, lesson_text)
     )
     conn.commit()
@@ -86,7 +93,7 @@ def add_lesson():
 def get_lessons(course_id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM lessons WHERE course_id = ?", (course_id,))
+    cursor.execute("SELECT * FROM lessons WHERE course_id = %s", (course_id,))
     rows = cursor.fetchall()
     conn.close()
 
@@ -101,28 +108,54 @@ def get_lessons(course_id):
     return jsonify(lessons)
 
 # ----------------------------------------
-# ✅ Delete a course (and its lessons)
+# ✅ Delete a course (with cascading deletes)
 # ----------------------------------------
 @course_bp.route('/courses/<int:course_id>', methods=['DELETE'])
 def delete_course(course_id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM lessons WHERE course_id = ?", (course_id,))
-    cursor.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+
+    # 1. Get all lesson IDs for this course
+    cursor.execute("SELECT id FROM lessons WHERE course_id = %s", (course_id,))
+    lesson_ids = [row[0] for row in cursor.fetchall()]
+
+    # 2. Delete questions linked to those lessons
+    for lesson_id in lesson_ids:
+        cursor.execute("DELETE FROM questions WHERE lesson_id = %s", (lesson_id,))
+        cursor.execute("DELETE FROM user_progress WHERE lesson_id = %s", (lesson_id,))
+        cursor.execute("DELETE FROM user_points WHERE lesson_id = %s", (lesson_id,))
+        cursor.execute("DELETE FROM comments WHERE lesson_id = %s", (lesson_id,))
+
+    # 3. Delete lessons
+    cursor.execute("DELETE FROM lessons WHERE course_id = %s", (course_id,))
+
+    # 4. Finally, delete the course
+    cursor.execute("DELETE FROM courses WHERE id = %s", (course_id,))
+
     conn.commit()
     conn.close()
 
-    return jsonify({"message": f"Course {course_id} deleted"}), 200
+    return jsonify({"message": f"Course {course_id} and related data deleted"}), 200
+
 
 # ----------------------------------------
-# ✅ Delete a lesson
+# ✅ Delete a lesson (and related data)
 # ----------------------------------------
 @course_bp.route('/lessons/<int:lesson_id>', methods=['DELETE'])
 def delete_lesson(lesson_id):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM lessons WHERE id = ?", (lesson_id,))
+
+    # Delete dependent records first (order matters!)
+    cursor.execute("DELETE FROM questions WHERE lesson_id = %s", (lesson_id,))
+    cursor.execute("DELETE FROM user_progress WHERE lesson_id = %s", (lesson_id,))
+    cursor.execute("DELETE FROM user_points WHERE lesson_id = %s", (lesson_id,))
+    cursor.execute("DELETE FROM comments WHERE lesson_id = %s", (lesson_id,))
+
+    # Then delete the lesson itself
+    cursor.execute("DELETE FROM lessons WHERE id = %s", (lesson_id,))
+
     conn.commit()
     conn.close()
 
-    return jsonify({"message": f"Lesson {lesson_id} deleted"}), 200
+    return jsonify({"message": f"Lesson {lesson_id} and its related data deleted"}), 200
