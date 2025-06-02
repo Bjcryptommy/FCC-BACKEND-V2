@@ -1,79 +1,115 @@
 # backend/models.py
 
-import sqlite3
+import psycopg2
+from psycopg2 import sql
+
+# Render PostgreSQL credentials
+DB_NAME = "fcc_clone"
+DB_USER = "fcc_clone_user"
+DB_PASSWORD = "essfA7Cp2fMoEGtxj4VtZkROg3bSnlW3"
+DB_HOST = "dpg-d0umgre3jp1c738irgug-a.oregon-postgres.render.com"
+DB_PORT = "5432"
+
+def get_db():
+    return psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
 
 def create_tables():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
+    conn = get_db()
+    cur = conn.cursor()
 
-    # ✅ USERS table with full_name included
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        full_name TEXT,
-        password TEXT,
-        role TEXT DEFAULT 'student',
-        total_points INTEGER DEFAULT 0
-    )''')
+    # USERS table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE,
+            full_name TEXT,
+            password TEXT,
+            role TEXT DEFAULT 'student',
+            total_points INTEGER DEFAULT 0
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS courses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        description TEXT,
-        language TEXT DEFAULT 'General'
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS courses (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            description TEXT,
+            language TEXT DEFAULT 'General'
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS lessons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        course_id INTEGER,
-        title TEXT,
-        video_url TEXT,
-        lesson_text TEXT,
-        FOREIGN KEY (course_id) REFERENCES courses(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS lessons (
+            id SERIAL PRIMARY KEY,
+            course_id INTEGER REFERENCES courses(id),
+            title TEXT,
+            video_url TEXT,
+            lesson_text TEXT
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS questions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        lesson_id INTEGER,
-        question_text TEXT,
-        correct_answer_id INTEGER,
-        FOREIGN KEY (lesson_id) REFERENCES lessons(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS questions (
+            id SERIAL PRIMARY KEY,
+            lesson_id INTEGER REFERENCES lessons(id),
+            question_text TEXT,
+            correct_answer_id INTEGER
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS answers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        question_id INTEGER,
-        answer_text TEXT,
-        FOREIGN KEY (question_id) REFERENCES questions(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS answers (
+            id SERIAL PRIMARY KEY,
+            question_id INTEGER REFERENCES questions(id),
+            answer_text TEXT
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS user_progress (
-        user_id INTEGER,
-        lesson_id INTEGER,
-        is_completed BOOLEAN,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (lesson_id) REFERENCES lessons(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS user_progress (
+            user_id INTEGER REFERENCES users(id),
+            lesson_id INTEGER REFERENCES lessons(id),
+            is_completed BOOLEAN
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS user_points (
-        user_id INTEGER,
-        lesson_id INTEGER,
-        points INTEGER,
-        badge TEXT,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (lesson_id) REFERENCES lessons(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS user_points (
+            user_id INTEGER REFERENCES users(id),
+            lesson_id INTEGER REFERENCES lessons(id),
+            points INTEGER,
+            badge TEXT
+        )
+    ''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS user_attempts (
-        user_id INTEGER,
-        question_id INTEGER,
-        attempts INTEGER DEFAULT 0,
-        is_correct BOOLEAN DEFAULT 0,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (question_id) REFERENCES questions(id)
-    )''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS user_attempts (
+            user_id INTEGER REFERENCES users(id),
+            question_id INTEGER REFERENCES questions(id),
+            attempts INTEGER DEFAULT 0,
+            is_correct BOOLEAN DEFAULT FALSE
+        )
+    ''')
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS comments (
+            id SERIAL PRIMARY KEY,
+            lesson_id INTEGER REFERENCES lessons(id),
+            username TEXT,
+            text TEXT,
+            timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
 
     conn.commit()
+    cur.close()
     conn.close()
 
 create_tables()
